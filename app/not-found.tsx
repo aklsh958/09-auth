@@ -7,10 +7,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: '404 — Page not found | NoteHub',
     description: 'The page you are looking for does not exist.',
-    url: 'https://09-auth-nu-five.vercel.app//not-found',
+    url: 'https://09-auth-eta-silk.vercel.app/not-found',
     images: ['https://ac.goit.global/fullstack/react/notehub-og-meta.jpg'],
   },
 };
+
 const NotFound = () => {
   return (
     <div>
@@ -21,4 +22,5 @@ const NotFound = () => {
     </div>
   );
 };
+
 export default NotFound;
