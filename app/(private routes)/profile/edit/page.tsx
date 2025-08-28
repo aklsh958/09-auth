@@ -11,7 +11,6 @@ const EditProfilePage = () => {
   const router = useRouter();
   const [userData, setUserData] = useState<User>();
   const [error, setError] = useState('');
-
   const setUser = useAuthStore((state) => state.setUser);
 
   useEffect(() => {
@@ -20,12 +19,14 @@ const EditProfilePage = () => {
       .catch(() => setError('Unable to load profile'));
   }, []);
 
-  const handleSubmit = async () => {
-    if (!userData) return;
-    try {
-      setUser(userData);
-      await updateMe({ username: userData?.username });
+  const handleSubmit = async (formData: FormData) => {
+    setError('');
+    const username = formData.get('username') as string;
+    if (!username || !userData) return;
 
+    try {
+      const updatedUser = await updateMe({ username });
+      setUser(updatedUser);
       router.push('/profile');
     } catch {
       setError('Unable to save changes');
@@ -43,7 +44,7 @@ const EditProfilePage = () => {
 
         {userData?.avatar && (
           <Image
-            src={userData?.avatar}
+            src={userData.avatar}
             alt="User Avatar"
             width={120}
             height={120}
@@ -56,16 +57,10 @@ const EditProfilePage = () => {
             <label htmlFor="username">Username:</label>
             <input
               id="username"
+              name="username"
               type="text"
               className={css.input}
               defaultValue={userData?.username}
-              onChange={(event) =>
-                setUserData(
-                  userData
-                    ? { ...userData, username: event.target.value }
-                    : undefined
-                )
-              }
             />
           </div>
 
