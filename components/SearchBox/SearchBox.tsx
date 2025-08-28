@@ -1,16 +1,14 @@
-import css from "./SearchBox.module.css"
-
+import css from './SearchBox.module.css';
 
 interface SearchBoxProps {
   value: string;
-  onSearch: (newSearchQuery: string) => void;
+  onChange: (value: string) => void;
 }
 
-export default function SearchBox({ value, onSearch }: SearchBoxProps) {
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onSearch(event.target.value);
+export default function SearchBox({ value, onChange }: SearchBoxProps) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(e.target.value);
   };
-
 
   return (
     <input
@@ -20,5 +18,5 @@ export default function SearchBox({ value, onSearch }: SearchBoxProps) {
       value={value}
       onChange={handleChange}
     />
-  )
+  );
 }
