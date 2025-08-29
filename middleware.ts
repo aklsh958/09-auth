@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parse } from 'cookie';
+import { cookies } from 'next/headers';
 import { checkServerSession } from './lib/api/serverApi';
 
 const privateRoutes = ['/profile', '/notes'];
@@ -7,63 +7,44 @@ const publicRoutes = ['/sign-in', '/sign-up'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const cookieStore = await cookies(); // <- треба await
 
-  const accessToken = request.cookies.get('accessToken')?.value;
-  const refreshToken = request.cookies.get('refreshToken')?.value;
+  const accessToken = cookieStore.get('accessToken')?.value;
+  const refreshToken = cookieStore.get('refreshToken')?.value;
 
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const isPrivateRoute = privateRoutes.some(route => pathname.startsWith(route));
 
-  let setCookieHeader: string[] | undefined;
-  let refreshedAccessToken: string | undefined;
+  const response = NextResponse.next();
 
   if (!accessToken && refreshToken) {
     const data = await checkServerSession();
     const setCookie = data.headers['set-cookie'];
 
     if (setCookie) {
-      const cookieArray = Array.isArray(setCookie) ? setCookie : [setCookie];
-      setCookieHeader = cookieArray;
+      const cookiesArray = Array.isArray(setCookie) ? setCookie : [setCookie];
 
-      for (const cookieStr of cookieArray) {
-        const parsed = parse(cookieStr);
-        if (parsed.accessToken) refreshedAccessToken = parsed.accessToken;
+      for (const cookieStr of cookiesArray) {
+        const [cookiePair] = cookieStr.split(';');
+        const [name, value] = cookiePair.split('=');
+        if (name && value) {
+          response.cookies.set(name.trim(), value.trim());
+        }
       }
     }
   }
 
-  const hasAccess = Boolean(accessToken || refreshedAccessToken);
+  const hasAccess = Boolean(accessToken || response.cookies.get('accessToken'));
 
-  // Якщо користувач не авторизований
   if (!hasAccess) {
-    if (isPrivateRoute) {
-      const response = NextResponse.redirect(new URL('/sign-in', request.url));
-      if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
-      return response;
-    }
-    if (isPublicRoute) {
-      const response = NextResponse.next();
-      if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
-      return response;
-    }
+    if (isPrivateRoute) return NextResponse.redirect(new URL('/sign-in', request.url));
+    return response;
   }
 
-  // Якщо користувач авторизований
   if (isPublicRoute) {
-    const response = NextResponse.redirect(new URL('/', request.url));
-    if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
-    return response;
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  if (isPrivateRoute) {
-    const response = NextResponse.next();
-    if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
-    return response;
-  }
-
-  // За замовчуванням
-  const response = NextResponse.next();
-  if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
   return response;
 }
 
