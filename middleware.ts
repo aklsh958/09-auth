@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { parse } from 'cookie';
 import { checkServerSession } from './lib/api/serverApi';
 
@@ -8,12 +7,15 @@ const publicRoutes = ['/sign-in', '/sign-up'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get('accessToken')?.value;
-  const refreshToken = cookieStore.get('refreshToken')?.value;
+
+  const accessToken = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
 
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const isPrivateRoute = privateRoutes.some(route => pathname.startsWith(route));
+
+  let setCookieHeader: string[] | undefined;
+  let refreshedAccessToken: string | undefined;
 
   if (!accessToken && refreshToken) {
     const data = await checkServerSession();
@@ -21,35 +23,50 @@ export async function middleware(request: NextRequest) {
 
     if (setCookie) {
       const cookieArray = Array.isArray(setCookie) ? setCookie : [setCookie];
+      setCookieHeader = cookieArray;
+
       for (const cookieStr of cookieArray) {
         const parsed = parse(cookieStr);
-        const options = {
-          expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
-          path: parsed.Path,
-          maxAge: Number(parsed['Max-Age']),
-        };
-        if (parsed.accessToken) cookieStore.set('accessToken', parsed.accessToken, options);
-        if (parsed.refreshToken) cookieStore.set('refreshToken', parsed.refreshToken, options);
+        if (parsed.accessToken) refreshedAccessToken = parsed.accessToken;
       }
     }
   }
 
-  if (!accessToken) {
-    if (isPrivateRoute) return NextResponse.redirect(new URL('/sign-in', request.url));
-    if (isPublicRoute) return NextResponse.next();
-  } else {
-    if (isPublicRoute) return NextResponse.redirect(new URL('/', request.url));
-    if (isPrivateRoute) return NextResponse.next();
+  const hasAccess = Boolean(accessToken || refreshedAccessToken);
+
+  // Якщо користувач не авторизований
+  if (!hasAccess) {
+    if (isPrivateRoute) {
+      const response = NextResponse.redirect(new URL('/sign-in', request.url));
+      if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
+      return response;
+    }
+    if (isPublicRoute) {
+      const response = NextResponse.next();
+      if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
+      return response;
+    }
   }
 
-  return NextResponse.next();
+  // Якщо користувач авторизований
+  if (isPublicRoute) {
+    const response = NextResponse.redirect(new URL('/', request.url));
+    if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
+    return response;
+  }
+
+  if (isPrivateRoute) {
+    const response = NextResponse.next();
+    if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
+    return response;
+  }
+
+  // За замовчуванням
+  const response = NextResponse.next();
+  if (setCookieHeader) response.headers.set('set-cookie', setCookieHeader.join(','));
+  return response;
 }
 
 export const config = {
-  matcher: [
-    '/profile/:path*',
-    '/notes/:path*',
-    '/sign-in',
-    '/sign-up',
-  ],
+  matcher: ['/profile/:path*', '/notes/:path*', '/sign-in', '/sign-up'],
 };
